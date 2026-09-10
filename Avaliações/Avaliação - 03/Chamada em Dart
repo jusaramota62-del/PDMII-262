@@ -1,0 +1,100 @@
+import 'dart:async';
+
+/// Represents an Aluno entity.
+class Aluno {
+  final int id;
+  final String nome;
+  final int idade;
+
+  Aluno(this.id, this.nome, this.idade);
+
+  Map<String, dynamic> toMap() => {'id': id, 'nome': nome, 'idade': idade};
+
+  factory Aluno.fromMap(Map<String, dynamic> map) {
+    return Aluno(
+      map['id'] as int,
+      map['nome'] as String,
+      map['idade'] as int,
+    );
+  }
+
+  @override
+  String toString() => 'ID: $id | Nome: $nome | Idade: $idade';
+}
+
+/// Simulated in-memory database for Aluno entities.
+class AlunosDatabase {
+  final List<Aluno> _alunos = [];
+
+  AlunosDatabase();
+
+  Future<void> init() async {
+    // In-memory simulation: data is volatile.
+    await Future.delayed(const Duration(milliseconds: 100));
+    print('Armazenamento em memória inicializado.');
+  }
+
+  Future<void> insert(String nome, int idade) async {
+    final newId = _alunos.isEmpty 
+        ? 1 
+        : _alunos.map((a) => a.id).reduce((a, b) => a > b ? a : b) + 1;
+    _alunos.add(Aluno(newId, nome, idade));
+  }
+
+  List<Aluno> queryAll() => List.unmodifiable(_alunos);
+}
+
+/// Entry point of the application.
+Future<void> main() async {
+  final db = AlunosDatabase();
+
+  try {
+    print('Inicializando armazenamento...');
+    await db.init();
+
+    await _inserirAlunos(db);
+    await _listarAlunos(db);
+  } catch (e) {
+    print('Ocorreu um erro no fluxo principal da aplicação: $e');
+  }
+}
+
+/// Helper function to handle batch insertion.
+Future<void> _inserirAlunos(AlunosDatabase db) async {
+  try {
+    print('\nInserindo alunos...');
+    final dados = [
+      {'nome': 'Yukari Kurayami', 'idade': 20},
+      {'nome': 'Apoema Ybyrá', 'idade': 18},
+      {'nome': 'Thranduilion Taurion', 'idade': 18},
+    ];
+
+    for (final aluno in dados) {
+      final nome = aluno['nome'] as String;
+      final idade = aluno['idade'] as int;
+      await db.insert(nome, idade);
+      print('Aluno inserido com sucesso: $nome');
+    }
+  } catch (e) {
+    print('Erro ao inserir alunos: $e');
+  }
+}
+
+/// Helper function to display list of students.
+Future<void> _listarAlunos(AlunosDatabase db) async {
+  try {
+    print('\nListando alunos cadastrados:');
+    final resultado = db.queryAll();
+
+    if (resultado.isEmpty) {
+      print('Nenhum aluno encontrado.');
+      return;
+    }
+
+    for (final aluno in resultado) {
+      print(aluno.toString());
+    }
+  } catch (e) {
+    print('Erro ao listar alunos: $e');
+  }
+}
