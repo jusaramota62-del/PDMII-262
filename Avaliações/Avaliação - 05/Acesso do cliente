@@ -1,0 +1,49 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+Future<void> main() async {
+  final url = Uri.parse('http://localhost:8080/alunos');
+
+  try {
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> dados = jsonDecode(response.body);
+      final List<dynamic> listaAlunos = dados['alunos'];
+
+      print('--------------------------------------------------------------------------------------------------');
+      print('ID   NOME             DISCIPLINA            MEDIA   FALTAS   MENSAGEM');
+      print('--------------------------------------------------------------------------------------------------');
+
+      for (var item in listaAlunos) {
+        final int id = item['id'];
+        final String nome = item['nome'];
+        final String disciplina = item['disciplina'];
+        final double media = (item['media'] as num).toDouble();
+        final int faltas = item['faltas'];
+
+        String mensagem;
+        if (faltas > 20) {
+          mensagem = 'Reprovado por Faltas';
+        } else if (media < 6.0) {
+          mensagem = 'Reprovado';
+        } else {
+          mensagem = 'Aprovado';
+        }
+
+        final idStr = id.toString().padRight(4);
+        final nomeStr = nome.padRight(16);
+        final discStr = disciplina.padRight(21);
+        final mediaStr = media.toStringAsFixed(1).padRight(7);
+        final faltasStr = faltas.toString().padRight(8);
+
+        print('$idStr $nomeStr $discStr $mediaStr $faltasStr $mensagem');
+      }
+      print('--------------------------------------------------------------------------------------------------');
+    } else {
+      print('Erro ao aceder ao servidor. Código HTTP: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('Erro na ligação ao servidor: $e');
+  }
+}
