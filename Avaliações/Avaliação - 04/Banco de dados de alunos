@@ -1,0 +1,236 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:shelf/shelf.dart';
+import 'package:shelf/shelf_io.dart' as shelf_io;
+import 'package:shelf_router/shelf_router.dart';
+
+class Aluno {
+  final int id;
+  final String nome;
+  final String email;
+  final int idade;
+  final String curso;
+
+  Aluno({
+    required this.id,
+    required this.nome,
+    required this.email,
+    required this.idade,
+    required this.curso,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'nome': nome,
+      'email': email,
+      'idade': idade,
+      'curso': curso,
+    };
+  }
+
+  factory Aluno.fromJson(Map<String, dynamic> json) {
+    return Aluno(
+      id: json['id'],
+      nome: json['nome'],
+      email: json['email'],
+      idade: json['idade'],
+      curso: json['curso'],
+    );
+  }
+}
+
+// Lista manipulável em memória
+final List<Aluno> alunos = [
+  Aluno(
+    id: 1,
+    nome: 'Nigel Souza',
+    email: 'nigel.souza@example.com',
+    idade: 20,
+    curso: 'Engenharia de Computação',
+  ),
+  Aluno(
+    id: 2,
+    nome: 'Ishan Sharma',
+    email: 'ishan.sharma@example.com',
+    idade: 22,
+    curso: 'Engenharia Mecânica',
+  ),
+  Aluno(
+    id: 3,
+    nome: 'Misha Belov',
+    email: 'misha.belov@example.com',
+    idade: 21,
+    curso: 'Engenharia Civil',
+  ),
+  Aluno(
+    id: 4,
+    nome: 'Digger Sokolov',
+    email: 'digger.sokolov@example.com',
+    idade: 23,
+    curso: 'Sistemas de Informação',
+  ),
+];
+
+Response respostaJson(
+  dynamic dados, {
+  int statusCode = HttpStatus.ok,
+}) {
+  return Response(
+    statusCode,
+    body: jsonEncode(dados),
+    headers: {
+      HttpHeaders.contentTypeHeader: 'application/json; charset=utf-8',
+    },
+  );
+}
+
+Response alunoNaoEncontrado() {
+  return respostaJson(
+    {'erro': 'Aluno não encontrado'},
+    statusCode: HttpStatus.notFound,
+  );
+}
+
+Router criarRotas() {
+  final router = Router();
+
+  // Rota Inicial (Apresentação)
+  router.get('/', (Request request) {
+    return respostaJson({
+      'aplicacao': 'API REST de Alunos',
+      'versao': '1.0.0',
+      'rotas_disponiveis': {
+        'listar_alunos': 'GET /alunos',
+        'buscar_aluno': 'GET /alunos/<id>',
+        'filtrar_por_nome': 'GET /alunos?nome=Ana',
+        'cadastrar_aluno': 'POST /alunos',
+        'atualizar_aluno': 'PUT /alunos/<id>',
+        'deletar_aluno': 'DELETE /alunos/<id>',
+      },
+    });
+  });
+
+  // Rota 1: Listar todos os alunos (com suporte a filtros de nome e curso)
+  router.get('/alunos', (Request request) {
+    final nome = request.url.queryParameters['nome'];
+    final curso = request.url.queryParameters['curso'];
+
+    Iterable<Aluno> resultado = alunos;
+
+    if (nome != null && nome.trim().isNotEmpty) {
+      final nomeBusca = nome.toLowerCase();
+      resultado = resultado.where(
+        (aluno) => aluno.nome.toLowerCase().contains(nomeBusca),
+      );
+    }
+
+    if (curso != null && curso.trim().isNotEmpty) {
+      final cursoBusca = curso.toLowerCase();
+      resultado = resultado.where(
+        (aluno) => aluno.curso.toLowerCase().contains(cursoBusca),
+      );
+    }
+
+    return respostaJson({
+      'total': resultado.length,
+      'alunos': resultado.map((aluno) => aluno.toJson()).toList(),
+    });
+  });
+
+  // Rota 2: Buscar aluno específico por ID
+  router.get('/alunos/<id>', (Request request, String id) {
+    final idAluno = int.tryParse(id);
+
+    if (idAluno == null) {
+      return respostaJson(
+        {'erro': 'O ID do aluno deve ser um número inteiro'},
+        statusCode: HttpStatus.badRequest,
+      );
+    }
+
+    final aluno = alunos.cast<Aluno?>().firstWhere(
+          (aluno) => aluno?.id == idAluno,
+          orElse: () => null,
+        );
+
+    if (aluno == null) {
+      return alunoNaoEncontrado();
+    }
+
+    return respostaJson(aluno.toJson());
+  });
+
+  // Rota 3: Cadastrar novo aluno (POST)
+  router.post('/alunos', (Request request) async {
+    final payload = await request.readAsString();
+    final Map<String, dynamic> data = jsonDecode(payload);
+
+    final novoAluno = Aluno(
+      id: alunos.isEmpty ? 1 : alunos.last.id + 1,
+      nome: data['nome'] ?? 'Sem Nome',
+      email: data['email'] ?? '',
+      idade: data['idade'] ?? 0,
+      curso: data['curso'] ?? '',
+    );
+
+    alunos.add(novoAluno);
+
+    return respostaJson(
+      {
+        'mensagem': 'Aluno cadastrado com sucesso!',
+        'aluno': novoAluno.toJson(),
+      },
+      statusCode: HttpStatus.created,
+    );
+  });
+
+  // Rota 4: Remover aluno por ID (DELETE)
+  router.delete('/alunos/<id>', (Request request, String id) {
+    final idAluno = int.tryParse(id);
+    if (idAluno == null) {
+      return respostaJson(
+        {'erro': 'ID inválido'},
+        statusCode: HttpStatus.badRequest,
+      );
+    }
+
+    final index = alunos.indexWhere((aluno) => aluno.id == idAluno);
+    if (index == -1) {
+      return alunoNaoEncontrado();
+    }
+
+    final alunoRemovido = alunos.removeAt(index);
+    return respostaJson({
+      'mensagem': 'Aluno removido com sucesso!',
+      'aluno': alunoRemovido.toJson(),
+    });
+  });
+
+  return router;
+}
+
+Future<void> main() async {
+  final router = criarRotas();
+
+  final handler = Pipeline()
+      .addMiddleware(logRequests())
+      .addHandler(router.call);
+
+  final server = await shelf_io.serve(
+    handler,
+    InternetAddress.anyIPv4,
+    8080,
+  );
+
+  print('==================================================');
+  print(' Servidor Rodando com Sucesso!                    ');
+  print('==================================================');
+  print(' Links para testar no navegador:                  ');
+  print('  -> Informações da API: http://localhost:${server.port}/');
+  print('  -> Todos os Alunos:   http://localhost:${server.port}/alunos');
+  print('  -> Aluno ID 1:        http://localhost:${server.port}/alunos/1');
+  print('  -> Filtrar por Nome:  http://localhost:${server.port}/alunos?nome=Misha');
+  print('==================================================');
+}
